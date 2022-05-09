@@ -8,11 +8,11 @@ else:
 
 class BCAgent:
     
-    def __init__(self):
+    def __init__(self,lr=.01):
         # TODO: Define network, loss function, optimizer
         self.net = CNN()
         self.criterion = torch.nn.CrossEntropyLoss()
-        self.optimizer = torch.optim.SGD(self.net.parameters(), lr=0.01, momentum=0.9)
+        self.optimizer = torch.optim.SGD(self.net.parameters(), lr=lr, momentum=0.9)
         pass
 
     def update(self, X_batch, y_batch):
@@ -20,6 +20,8 @@ class BCAgent:
         # TODO: forward + backward + optimize
 
         net = self.net.to(device)
+        X_batch = X_batch.to(device)
+        y_batch = y_batch.to(device)
 
         # print(type(X_batch))
         # print(X_batch.shape)
@@ -54,9 +56,9 @@ class BCAgent:
         net = self.net.to(device)
         net.eval()
         with torch.no_grad():
-            for inputs in X:
-                inputs = inputs.to(device)
-                outputs = net(inputs)
+            # for inputs in X:
+            X = X.to(device)
+            outputs = net(X)
         return outputs
 
     def load(self, file_name):

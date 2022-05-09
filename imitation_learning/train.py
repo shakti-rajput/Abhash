@@ -111,8 +111,8 @@ def train_model(X_train, y_train, X_valid, n_minibatches, batch_size, lr, model_
     X_valid = X_valid.reshape(a, 1, b, c)
 
     # TODO: specify your agent with the neural network in agents/bc_agent.py
-    agent = BCAgent()
-    stats = ["loss"]
+    agent = BCAgent(lr)
+    stats = ["train_loss", "val_loss"]
 
     tensorboard_eval = Evaluation(tensorboard_dir, "car", stats)
 
@@ -143,32 +143,81 @@ def train_model(X_train, y_train, X_valid, n_minibatches, batch_size, lr, model_
     # for i, (train_features, train_labels) in enumerate(train_data_loader):
     #     batch_train_loss = agent.update(train_features, train_labels)
     #     print('[mini-batch #%3d] loss: %.6f' % (i + 1, batch_train_loss))
-    #     total_train_loss += batch_train_loss
-    #     dict={"loss":batch_train_loss}
-    #     tensorboard_eval.write_episode_data(i,dict)
-
-    batch_size = 64
-    n_minibatches = len(X_train) // batch_size
+    # #     total_train_loss += batch_train_loss
+    # #     dict={"loss":batch_train_loss}
+    # #     tensorboard_eval.write_episode_data(i,dict)
+    epoch = 500
+    H = {
+        "train_loss": [],
+        "train_acc": [],
+        "val_loss": [],
+        "val_acc": []
+    }
     train_idx = np.arange(len(X_train))
-    loss = 0
-    complete_loss = 0
-    for batch_num in range(n_minibatches + 1):
-        minibatch_start = batch_num * batch_size
-        minibatch_end = (batch_num + 1) * batch_size
-        x_batch = X_train[minibatch_start:minibatch_end]
-        y_batch = y_train[minibatch_start:minibatch_end]
-        x_batch = torch.from_numpy(x_batch)
-        y_batch = torch.from_numpy(y_batch)
-        loss = agent.update(x_batch, y_batch)
-        complete_loss += loss
-        # if batch_num % 10 == 0:
-        #     # compute training/ validation accuracy and write it to tensorboard
-        #     print('[mini-batch #%3d] loss: %.6f' % (batch_num + 1, loss))
-        print('[mini-batch #%3d] loss: %.6f' % (batch_num + 1, loss))
+    for i in range(epoch):
+        batch_size = batch_size
+        n_minibatches = len(X_train) // batch_size
+        np.random.shuffle(train_idx)
+        X_train = X_train[train_idx]
+        y_train = y_train[train_idx]
+        batch_train_loss = 0
+        avg_train_loss = 0
 
-    # TODO: save your agent
+        for batch_num in range(n_minibatches + 1):
+            minibatch_start = batch_num * batch_size
+            minibatch_end = (batch_num + 1) * batch_size
+            x_batch = X_train[minibatch_start:minibatch_end]
+            y_batch = y_train[minibatch_start:minibatch_end]
+            x_batch = torch.from_numpy(x_batch)
+            y_batch = torch.from_numpy(y_batch)
+            batch_train_loss = agent.update(x_batch, y_batch)
+            avg_train_loss += batch_train_loss
+            # if batch_num % 10 == 0:
+            #     # compute training/ validation accuracy and write it to tensorboard
+            #     print('[mini-batch #%3d] loss: %.6f' % (batch_num + 1, loss))
+            # print('[mini-batch #%3d] loss: %.6f' % (batch_num + 1, avg_train_loss / (batch_num + 1)))
+        # di = {"loss": avg_train_loss}
+        # tensorboard_eval.write_episode_data(1, di)
+
+        n_minibatches_val = len(X_valid) // batch_size
+        batch_train_loss = 0
+        avg_val_loss = 0
+        for batch_num in range(n_minibatches_val + 1):
+            minibatch_start = batch_num * batch_size
+            minibatch_end = (batch_num + 1) * batch_size
+            x_batch = X_valid[minibatch_start:minibatch_end]
+            y_batch = y_valid[minibatch_start:minibatch_end]
+            x_batch = torch.from_numpy(x_batch)
+            y_batch = torch.from_numpy(y_batch)
+            outputs = agent.predict(x_batch)
+            loss = agent.criterion(outputs, y_batch)
+            batch_train_loss = loss.item()
+            avg_val_loss += batch_train_loss
+            # print('[mini-batch #%3d] loss: %.6f' % (batch_num + 1, avg_val_loss / (batch_num + 1)))
+
+        di = {"train_loss": avg_train_loss / (n_minibatches + 1), "val_loss": avg_val_loss / (n_minibatches_val + 1)}
+        print(type(di))
+        print(di)
+        tensorboard_eval.write_episode_data(i, di)
+
+
+        # TODO: save your agent
+        H["train_loss"].append(avg_train_loss / (n_minibatches + 1))
+        H["val_loss"].append(avg_val_loss / (n_minibatches_val + 1))
     model_dir = agent.save(os.path.join(model_dir, "agent.pt"))
     print("Model saved in file: %s" % model_dir)
+
+    tensorboard_eval.close_session()
+
+    # plot the training loss and accuracy
+    plt.style.use("ggplot")
+    plt.figure()
+    plt.plot(H["train_loss"], label="train_loss")
+    plt.plot(H["val_loss"], label="val_loss")
+    plt.xlabel("Epoch #")
+    plt.ylabel("Loss")
+    plt.legend(loc="lower left")
+    plt.show()
 
 
 if __name__ == "__main__":
